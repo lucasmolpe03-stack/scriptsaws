@@ -10,3 +10,16 @@ echo $VPC_ID
 aws ec2 modify-vpc-attribute \
     --vpc-id $VPC_ID \
     --enable-dns-hostnames "{\"Value\":true}"
+
+#crear una subnet
+SUB_ID=$(aws ec2 create-subnet \
+    --vpc-id $VPC_ID \
+    --cidr-block 192.168.0.0/28 \
+    --tag-specifications 'ResourceType=subnet,Tags=[{Key=Name,Value=mi-subred-lucas1}]' \
+    --query Subnet.SubnetId --output text)
+
+echo $SUB_ID
+
+#habilito la asignacion de ipv4publica en la subred 
+#comprobar como NO se habilita y tenemos que hacerlo a porteriori
+aws ec2 modify-subnet-attribute --subnet-id $SUB_ID --map-public-ip-on-launch
