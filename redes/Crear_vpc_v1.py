@@ -17,7 +17,7 @@ def main():
         ec2 = boto3.client('ec2')
         
         # 1. Crear VPC
-        print("\n[1/2] Creando VPC...")
+        print("\n[1/3] Creando VPC...")
         vpc_response = ec2.create_vpc(
             CidrBlock='192.168.0.0/24',
             TagSpecifications=[
@@ -28,9 +28,21 @@ def main():
         print(f"✓ VPC creada: {vpc_id}")
         
         # 2. Habilitar DNS
-        print("\n[2/2] Habilitando DNS en la VPC...")
+        print("\n[2/3] Habilitando DNS en la VPC...")
         ec2.modify_vpc_attribute(VpcId=vpc_id, EnableDnsHostnames={'Value': True})
         print("✓ DNS habilitado")
+
+        # 3. Crear Subnet
+        print("\n[3/3] Creando Subnet...")
+        subnet_response = ec2.create_subnet(
+            VpcId=vpc_id,
+            CidrBlock='192.168.0.0/28',
+            TagSpecifications=[
+                {'ResourceType': 'subnet', 'Tags': [{'Key': 'Name', 'Value': 'mi-subred-lucas1'}]}
+            ]
+        )
+        subnet_id = subnet_response['Subnet']['SubnetId']
+        print(f"✓ Subnet creada: {subnet_id}")
         
         # Resumen final
         print("\n" + "="*60)
