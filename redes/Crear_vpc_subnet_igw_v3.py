@@ -44,11 +44,34 @@ def main():
         subnet_id = subnet_response['Subnet']['SubnetId']
         print(f"✓ Subnet creada: {subnet_id}")
         
+        
+        # 4. Habilitar IP pública automática
+        print("\n[4/6] Habilitando asignación automática de IP pública...")
+        ec2.modify_subnet_attribute(SubnetId=subnet_id, MapPublicIpOnLaunch={'Value': True})
+        print("✓ IP pública automática habilitada")
+        
+        # 5. Crear Internet Gateway
+        print("\n[5/6] Creando Internet Gateway...")
+        igw_response = ec2.create_internet_gateway(
+            TagSpecifications=[
+                {'ResourceType': 'internet-gateway', 'Tags': [{'Key': 'Name', 'Value': 'MiIg'}]}
+            ]
+        )
+        igw_id = igw_response['InternetGateway']['InternetGatewayId']
+        print(f"✓ Internet Gateway creado: {igw_id}")
+        
+        # 6. Adjuntar IGW a VPC
+        print("\n[6/6] Adjuntando Internet Gateway a la VPC...")
+        ec2.attach_internet_gateway(InternetGatewayId=igw_id, VpcId=vpc_id)
+        print("✓ Internet Gateway adjuntado")
+        
         # Resumen final
         print("\n" + "="*60)
-        print("VPC CREADA EXITOSAMENTE")
+        print("VPC, SUBNET E INTERNET GATEWAY CREADOS EXITOSAMENTE")
         print("="*60)
-        print(f"VPC ID: {vpc_id}")
+        print(f"VPC ID:              {vpc_id}")
+        print(f"Subnet ID:           {subnet_id}")
+        print(f"Internet Gateway ID: {igw_id}")
         print("="*60)
         
     except ClientError as e:
