@@ -28,7 +28,7 @@ def main():
         ec2 = boto3.client('ec2')
         
         # 1. Crear VPC
-        print("\n[1/3] Creando VPC...")
+        print("\n[1/13] Creando VPC...")
         vpc_response = ec2.create_vpc(
             CidrBlock='192.168.0.0/24',
             TagSpecifications=[
@@ -39,12 +39,12 @@ def main():
         print(f"✓ VPC creada: {vpc_id}")
         
         # 2. Habilitar DNS
-        print("\n[2/3] Habilitando DNS en la VPC...")
+        print("\n[2/13] Habilitando DNS en la VPC...")
         ec2.modify_vpc_attribute(VpcId=vpc_id, EnableDnsHostnames={'Value': True})
         print("✓ DNS habilitado")
 
         # 3. Crear Subnet
-        print("\n[3/3] Creando Subnet...")
+        print("\n[3/13] Creando Subnet...")
         subnet_response = ec2.create_subnet(
             VpcId=vpc_id,
             CidrBlock='192.168.0.0/28',
@@ -57,12 +57,12 @@ def main():
         
         
         # 4. Habilitar IP pública automática
-        print("\n[4/6] Habilitando asignación automática de IP pública...")
+        print("\n[4/13] Habilitando asignación automática de IP pública...")
         ec2.modify_subnet_attribute(SubnetId=subnet_id, MapPublicIpOnLaunch={'Value': True})
         print("✓ IP pública automática habilitada")
         
         # 5. Crear Internet Gateway
-        print("\n[5/6] Creando Internet Gateway...")
+        print("\n[5/13] Creando Internet Gateway...")
         igw_response = ec2.create_internet_gateway(
             TagSpecifications=[
                 {'ResourceType': 'internet-gateway', 'Tags': [{'Key': 'Name', 'Value': 'MiIg'}]}
@@ -72,12 +72,12 @@ def main():
         print(f"✓ Internet Gateway creado: {igw_id}")
         
         # 6. Adjuntar IGW a VPC
-        print("\n[6/6] Adjuntando Internet Gateway a la VPC...")
+        print("\n[6/13] Adjuntando Internet Gateway a la VPC...")
         ec2.attach_internet_gateway(InternetGatewayId=igw_id, VpcId=vpc_id)
         print("✓ Internet Gateway adjuntado")
         
         # 7. Crear Route Table
-        print("\n[7/9] Creando Route Table...")
+        print("\n[7/13] Creando Route Table...")
         route_table_response = ec2.create_route_table(
             VpcId=vpc_id,
             TagSpecifications=[
@@ -88,17 +88,17 @@ def main():
         print(f"✓ Route Table creada: {route_table_id}")
         
         # 8. Agregar ruta a Internet
-        print("\n[8/9] Agregando ruta hacia Internet (0.0.0.0/0)...")
+        print("\n[8/13] Agregando ruta hacia Internet (0.0.0.0/0)...")
         ec2.create_route(RouteTableId=route_table_id, DestinationCidrBlock='0.0.0.0/0', GatewayId=igw_id)
         print("✓ Ruta 0.0.0.0/0 añadida al IGW")
         
         # 9. Asociar Route Table a Subnet
-        print("\n[9/9] Asociando Route Table a la Subnet...")
+        print("\n[9/13] Asociando Route Table a la Subnet...")
         ec2.associate_route_table(RouteTableId=route_table_id, SubnetId=subnet_id)
         print("✓ Route Table asociada")
         
         # 10. Crear Security Group
-        print("\n[10/12] Creando Security Group...")
+        print("\n[10/13] Creando Security Group...")
         sg_response = ec2.create_security_group(
             VpcId=vpc_id,
             GroupName='gsmio',
@@ -108,7 +108,7 @@ def main():
         print(f"✓ Security Group creado: {sg_id}")
         
         # 11. Autorizar SSH
-        print("\n[11/12] Autorizando tráfico SSH (puerto 22)...")
+        print("\n[11/13] Autorizando tráfico SSH (puerto 22)...")
         ec2.authorize_security_group_ingress(
             GroupId=sg_id,
             IpPermissions=[
@@ -123,7 +123,7 @@ def main():
         print("✓ Regla SSH autorizada")
         
         # 12. Autorizar ICMP
-        print("\n[12/12] Autorizando tráfico ICMP (ping)...")
+        print("\n[12/13] Autorizando tráfico ICMP (ping)...")
         ec2.authorize_security_group_ingress(
             GroupId=sg_id,
             IpPermissions=[
