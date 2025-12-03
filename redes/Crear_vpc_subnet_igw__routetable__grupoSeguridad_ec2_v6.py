@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """
-Versión 1: Crear VPC con DNS habilitado
+Versión 6: Infraestructura completa con instancia EC2
 
 Este script crea:
 - VPC con CIDR 192.168.0.0/24
 - Habilita DNS hostnames en la VPC
+- Subnet con CIDR 192.168.0.0/28
+- Habilita asignación automática de IP pública en la subnet
+- Internet Gateway
+- Adjunta el Internet Gateway a la VPC
+- Route Table
+- Ruta hacia Internet (0.0.0.0/0)
+- Asocia la Route Table a la Subnet
+- Security Group
+- Reglas de ingreso para SSH (puerto 22)
+- Reglas de ingreso para ICMP (ping)
+- Instancia EC2 (t2.micro)
 """
 
 import boto3
@@ -126,15 +137,39 @@ def main():
         )
         print("✓ Regla ICMP autorizada")
         
+        # 13. Crear EC2 Instance
+        print("\n[13/13] Creando instancia EC2...")
+        instance_response = ec2.run_instances(
+            ImageId='ami-0360c520857e3138f',
+            InstanceType='t2.micro',
+            KeyName='vockey',
+            MinCount=1,
+            MaxCount=1,
+            NetworkInterfaces=[
+                {
+                    'DeviceIndex': 0,
+                    'SubnetId': subnet_id,
+                    'Groups': [sg_id],
+                    'AssociatePublicIpAddress': True
+                }
+            ],
+            TagSpecifications=[
+                {'ResourceType': 'instance', 'Tags': [{'Key': 'Name', 'Value': 'miec2'}]}
+            ]
+        )
+        instance_id = instance_response['Instances'][0]['InstanceId']
+        print(f"✓ Instancia EC2 creada: {instance_id}")
+        
         # Resumen final
         print("\n" + "="*60)
-        print("RED Y SEGURIDAD CREADAS EXITOSAMENTE")
+        print("INFRAESTRUCTURA COMPLETA CREADA EXITOSAMENTE")
         print("="*60)
         print(f"VPC ID:              {vpc_id}")
         print(f"Subnet ID:           {subnet_id}")
-        print(f"Internet Gateway ID: {igw_id}")
+        print(f"Internet Gateway:    {igw_id}")
         print(f"Route Table ID:      {route_table_id}")
         print(f"Security Group ID:   {sg_id}")
+        print(f"EC2 Instance ID:     {instance_id}")
         print("="*60)
         
     except ClientError as e:
