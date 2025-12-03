@@ -65,13 +65,35 @@ def main():
         ec2.attach_internet_gateway(InternetGatewayId=igw_id, VpcId=vpc_id)
         print("✓ Internet Gateway adjuntado")
         
+        # 7. Crear Route Table
+        print("\n[7/9] Creando Route Table...")
+        route_table_response = ec2.create_route_table(
+            VpcId=vpc_id,
+            TagSpecifications=[
+                {'ResourceType': 'route-table', 'Tags': [{'Key': 'Name', 'Value': 'MiTablaEnrutadora'}]}
+            ]
+        )
+        route_table_id = route_table_response['RouteTable']['RouteTableId']
+        print(f"✓ Route Table creada: {route_table_id}")
+        
+        # 8. Agregar ruta a Internet
+        print("\n[8/9] Agregando ruta hacia Internet (0.0.0.0/0)...")
+        ec2.create_route(RouteTableId=route_table_id, DestinationCidrBlock='0.0.0.0/0', GatewayId=igw_id)
+        print("✓ Ruta 0.0.0.0/0 añadida al IGW")
+        
+        # 9. Asociar Route Table a Subnet
+        print("\n[9/9] Asociando Route Table a la Subnet...")
+        ec2.associate_route_table(RouteTableId=route_table_id, SubnetId=subnet_id)
+        print("✓ Route Table asociada")
+        
         # Resumen final
         print("\n" + "="*60)
-        print("VPC, SUBNET E INTERNET GATEWAY CREADOS EXITOSAMENTE")
+        print("RED COMPLETA CREADA EXITOSAMENTE")
         print("="*60)
         print(f"VPC ID:              {vpc_id}")
         print(f"Subnet ID:           {subnet_id}")
         print(f"Internet Gateway ID: {igw_id}")
+        print(f"Route Table ID:      {route_table_id}")
         print("="*60)
         
     except ClientError as e:
