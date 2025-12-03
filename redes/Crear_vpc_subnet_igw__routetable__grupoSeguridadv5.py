@@ -86,14 +86,55 @@ def main():
         ec2.associate_route_table(RouteTableId=route_table_id, SubnetId=subnet_id)
         print("✓ Route Table asociada")
         
+        # 10. Crear Security Group
+        print("\n[10/12] Creando Security Group...")
+        sg_response = ec2.create_security_group(
+            VpcId=vpc_id,
+            GroupName='gsmio',
+            Description='Mi grupo de seguridad para salir al puerto 22'
+        )
+        sg_id = sg_response['GroupId']
+        print(f"✓ Security Group creado: {sg_id}")
+        
+        # 11. Autorizar SSH
+        print("\n[11/12] Autorizando tráfico SSH (puerto 22)...")
+        ec2.authorize_security_group_ingress(
+            GroupId=sg_id,
+            IpPermissions=[
+                {
+                    'IpProtocol': 'tcp',
+                    'FromPort': 22,
+                    'ToPort': 22,
+                    'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'SSH access'}]
+                }
+            ]
+        )
+        print("✓ Regla SSH autorizada")
+        
+        # 12. Autorizar ICMP
+        print("\n[12/12] Autorizando tráfico ICMP (ping)...")
+        ec2.authorize_security_group_ingress(
+            GroupId=sg_id,
+            IpPermissions=[
+                {
+                    'IpProtocol': 'icmp',
+                    'FromPort': -1,
+                    'ToPort': -1,
+                    'IpRanges': [{'CidrIp': '0.0.0.0/0', 'Description': 'ICMP access'}]
+                }
+            ]
+        )
+        print("✓ Regla ICMP autorizada")
+        
         # Resumen final
         print("\n" + "="*60)
-        print("RED COMPLETA CREADA EXITOSAMENTE")
+        print("RED Y SEGURIDAD CREADAS EXITOSAMENTE")
         print("="*60)
         print(f"VPC ID:              {vpc_id}")
         print(f"Subnet ID:           {subnet_id}")
         print(f"Internet Gateway ID: {igw_id}")
         print(f"Route Table ID:      {route_table_id}")
+        print(f"Security Group ID:   {sg_id}")
         print("="*60)
         
     except ClientError as e:
