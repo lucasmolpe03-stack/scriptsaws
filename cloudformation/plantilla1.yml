@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Plantilla que crea una VPC solicitando el direccionamiento CIDR como parámetro, un EC2 en la subred y un grupo de seguridad
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Description: CIDR de la VPC (por ejemplo 10.0.0.0/16)
+    Default: "192.168.0.0/20"
+
+  VpcName:
+    Type: String
+    Description: "Nombre para etiquetar la VPC"
+    Default: "mi-vpc-lucas"
+
+  SubnetCidr:
+    Type: String
+    Description: "Direccionamiento subred"
+    Default: "192.168.1.0/24"
+
+  InstanceType:
+    Type: String
+    Description: Tipo de instancia EC2
+    Default: t2.micro
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Nombre del par de llaves para acceso SSH
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: ID de la AMI (por ejemplo Amazon Linux 2)
+    Default: "ami-07ff62358b87c7116"
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Ref VpcName
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref SubnetCidr
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-subnet"
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Grupo de seguridad para el EC2 permitiendo SSH"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-sg"
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      SubnetId: !Ref Subnet
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${VpcName}-ec2"
+
+Outputs:
+  VpcId:
+    Description: ID de la VPC creada
+    Value: !Ref VPC
+
+  VpcCidrOut:
+    Description: CIDR configurado en la VPC
+    Value: !Ref VpcCidr
+
+  SubnetId:
+    Description: ID de la subred creada
+    Value: !Ref Subnet
+
+  SubnetCidr:
+    Description: CIDR configurado en la subred
+    Value: !Ref SubnetCidr
+
+  EC2InstanceId:
+    Description: ID de la instancia EC2 creada
+    Value: !Ref EC2Instance
+
+  EC2SecurityGroupId:
+    Description: ID del grupo de seguridad creado
+    Value: !Ref EC2SecurityGroup
