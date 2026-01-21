@@ -1,9 +1,0 @@
-# Ignore all files in this directory
-*
-
-# Except these specific files
-!plantilla_final.py
-!explicacion_plantilla_final.md
-
-# Don't ignore .gitignore itself
-!.gitignore
