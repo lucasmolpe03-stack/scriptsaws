@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VPC con subredes usando Mappings para diferentes regiones con IGW condicional
+
+Parameters:
+  AdjuntarIGW:
+    Description: Determina si se debe adjuntar un Internet Gateway
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+Mappings:
+  RegionConfig:
+    us-east-1:
+      VPCCidr: 10.0.0.0/20
+      SubnetCidr: 10.0.0.0/24
+    us-west-2:
+      VPCCidr: 172.16.0.0/20
+      SubnetCidr: 172.16.0.0/24
+
+Conditions:
+  DebeAdjuntarIGW: !Equals [!Ref AdjuntarIGW, 'true']
+
+Resources:
+  MiVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [RegionConfig, !Ref AWS::Region, VPCCidr]
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: LMolina-VPC
+
+  SubredPublica:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MiVPC
+      CidrBlock: !FindInMap [RegionConfig, !Ref AWS::Region, SubnetCidr]
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: LMolina-Subred
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: LMolina-IGW
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MiVPC
+      InternetGatewayId: !If [DebeAdjuntarIGW, !Ref InternetGateway, !Ref AWS::NoValue]
+
+  TablaRutas:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MiVPC
+      Tags:
+        - Key: Name
+          Value: LMolina-TablaRutas
+
+  RutaPublica:
+    Type: AWS::EC2::Route
+    Condition: DebeAdjuntarIGW
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref TablaRutas
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  AsociacionSubredTablaRutas:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubredPublica
+      RouteTableId: !Ref TablaRutas
+
+Outputs:
+  VPCID:
+    Description: ID de la VPC creada
+    Value: !Ref MiVPC
+  
+  VPCCidrBlock:
+    Description: Bloque CIDR de la VPC segun la region
+    Value: !GetAtt MiVPC.CidrBlock
+  
+  SubredPublicaID:
+    Description: ID de la subred publica
+    Value: !Ref SubredPublica
+  
+  ZonaDisponibilidad:
+    Description: Zona de disponibilidad seleccionada dinamicamente
+    Value: !GetAtt SubredPublica.AvailabilityZone
+  
+  InternetGatewayID:
+    Description: ID del Internet Gateway (si se adjunto)
+    Condition: DebeAdjuntarIGW
+    Value: !Ref InternetGateway
+  
+  EstadoIGW:
+    Description: Indica si el IGW fue adjuntado
+    Value: !If [DebeAdjuntarIGW, 'IGW Adjuntado', 'IGW No Adjuntado']

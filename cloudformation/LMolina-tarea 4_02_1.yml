@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VPC con subred publica y instancia EC2 condicional con validacion de tipo de instancia
+
+Parameters:
+  CrearInstancia:
+    Description: Determina si se debe crear la instancia EC2
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  TipoInstancia:
+    Description: Tipo de instancia EC2
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+  
+  KeyPair:
+    Description: Par de claves SSH para la instancia EC2
+    Type: String
+
+Conditions:
+  DebeCrearInstancia: !Equals [!Ref CrearInstancia, 'true']
+
+Rules:
+  ValidarTipoInstancia:
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref TipoInstancia, 't2.micro']
+          - !Equals [!Ref TipoInstancia, 't2.small']
+          - !Equals [!Ref TipoInstancia, 't2.medium']
+        AssertDescription: El tipo de instancia debe ser t2.micro, t2.small o t2.medium
+
+Resources:
+  MiVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: LMolina-VPC
+
+  SubredPublica:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MiVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: LMolina-SubredPublica
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: LMolina-IGW
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MiVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  TablaRutas:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MiVPC
+      Tags:
+        - Key: Name
+          Value: LMolina-TablaRutasPublica
+
+  RutaPublica:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref TablaRutas
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  AsociacionSubredTablaRutas:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubredPublica
+      RouteTableId: !Ref TablaRutas
+
+  GrupoSeguridad:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Grupo de seguridad para instancia EC2
+      VpcId: !Ref MiVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: LMolina-SG
+
+  InstanciaEC2:
+    Type: AWS::EC2::Instance
+    Condition: DebeCrearInstancia
+    Properties:
+      InstanceType: !Ref TipoInstancia
+      ImageId: ami-0532be01f26a3de55
+      KeyName: !Ref KeyPair
+      SubnetId: !Ref SubredPublica
+      SecurityGroupIds:
+        - !Ref GrupoSeguridad
+      Tags:
+        - Key: Name
+          Value: !Join ['-', [!Ref AWS::Region, !Ref AWS::StackName, 'LMolina']]
+        - Key: VPCID
+          Value: !GetAtt MiVPC.VpcId
+
+Outputs:
+  VPCID:
+    Description: ID de la VPC creada
+    Value: !Ref MiVPC
+  
+  SubredPublicaID:
+    Description: ID de la subred publica
+    Value: !Ref SubredPublica
+  
+  ZonaDisponibilidad:
+    Description: Zona de disponibilidad de la VPC
+    Value: !GetAtt SubredPublica.AvailabilityZone
+  
+  InstanciaID:
+    Description: ID de la instancia EC2
+    Condition: DebeCrearInstancia
+    Value: !Ref InstanciaEC2
+  
+  NombreRecurso:
+    Description: Nombre formado con Join (Region-StackName-LMolina)
+    Condition: DebeCrearInstancia
+    Value: !Join ['-', [!Ref AWS::Region, !Ref AWS::StackName, 'LMolina']]
