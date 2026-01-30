@@ -1,0 +1,781 @@
+# ============================================================================
+# FUNCIONES INTRÍNSECAS DE AWS CLOUDFORMATION - GUÍA COMPLETA CON EJEMPLOS
+# ============================================================================
+
+# Este archivo contiene todas las funciones intrínsecas mencionadas en el curso
+# con explicaciones detalladas y ejemplos prácticos de uso.
+
+# ============================================================================
+# 1. Ref - Referencia a parámetros o recursos
+# ============================================================================
+# DESCRIPCIÓN:
+# La función Ref devuelve el valor de un parámetro o el ID físico de un recurso.
+# Para la mayoría de los recursos, devuelve el nombre físico del recurso.
+# 
+# SINTAXIS:
+# !Ref NombreDelRecurso
+# O en formato largo: {"Ref": "NombreDelRecurso"}
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Ejemplos de funciones intrinsecas de CloudFormation'
+
+# --- EJEMPLO 1: Ref con Parámetros ---
+Parameters:
+  KeyPairName:
+    Type: String
+    Description: Nombre del par de claves SSH
+    Default: mi-keypair
+  
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+    Description: Tipo de instancia EC2
+
+Resources:
+  # Uso de Ref para referenciar parámetros
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: !Ref InstanceTypeParameter  # Referencia al parámetro
+      KeyName: !Ref KeyPairName                 # Referencia al parámetro
+      Tags:
+        - Key: Name
+          Value: !Ref KeyPairName
+
+  # Uso de Ref para referenciar otros recursos
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group de ejemplo
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  MyEC2InstanceWithSG:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref MySecurityGroup  # Referencia al recurso SecurityGroup
+
+# ============================================================================
+# 2. Fn::GetAtt - Obtener atributos de recursos
+# ============================================================================
+# DESCRIPCIÓN:
+# Devuelve el valor de un atributo específico de un recurso.
+# Útil cuando necesitas más que el ID físico del recurso.
+#
+# SINTAXIS:
+# !GetAtt NombreRecurso.Atributo
+# O en formato largo: {"Fn::GetAtt": ["NombreRecurso", "Atributo"]}
+
+  # --- EJEMPLO 2: GetAtt con S3 y CloudFront ---
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: mi-bucket-ejemplo-2026
+
+  MyCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt MyS3Bucket.DomainName  # Obtiene el DomainName del bucket
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: allow-all
+          ForwardedValues:
+            QueryString: false
+
+  # --- EJEMPLO 3: GetAtt con EC2 ---
+  MyEC2ForGetAtt:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: t2.micro
+
+Outputs:
+  InstancePublicIP:
+    Description: IP pública de la instancia
+    Value: !GetAtt MyEC2ForGetAtt.PublicIp  # Obtiene la IP pública
+
+  InstancePrivateIP:
+    Description: IP privada de la instancia
+    Value: !GetAtt MyEC2ForGetAtt.PrivateIp  # Obtiene la IP privada
+
+  InstanceAvailabilityZone:
+    Description: Zona de disponibilidad
+    Value: !GetAtt MyEC2ForGetAtt.AvailabilityZone  # Obtiene la AZ
+
+# ============================================================================
+# 3. Fn::Sub - Sustitución de variables en cadenas
+# ============================================================================
+# DESCRIPCIÓN:
+# Sustituye variables en una cadena de texto con valores reales.
+# Las variables se especifican con ${NombreVariable}.
+#
+# SINTAXIS:
+# !Sub 'cadena con ${Variable}'
+# O con mapa de variables: !Sub ['cadena', {Variable: valor}]
+
+  # --- EJEMPLO 4: Sub simple ---
+  MyBucketWithSub:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-bucket-${AWS::Region}'
+      Tags:
+        - Key: Environment
+          Value: !Sub 'Stack: ${AWS::StackName} en ${AWS::Region}'
+
+  # --- EJEMPLO 5: Sub con múltiples variables ---
+  MyInstanceWithSub:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: t2.micro
+      Tags:
+        - Key: Name
+          Value: !Sub '${AWS::StackName}-instance-${AWS::Region}'
+        - Key: Description
+          Value: !Sub 'Instancia creada en ${AWS::Region} para ${AWS::StackName}'
+
+Outputs:
+  SubExample:
+    Description: Ejemplo de Sub en outputs
+    Value: !Sub 'https://${MyS3Bucket}.s3.${AWS::Region}.amazonaws.com'
+
+  SubWithGetAtt:
+    Description: Sub combinado con GetAtt
+    Value: !Sub 'La instancia ${MyEC2ForGetAtt} tiene IP ${MyEC2ForGetAtt.PublicIp}'
+
+# ============================================================================
+# 4. Fn::Join - Unir cadenas
+# ============================================================================
+# DESCRIPCIÓN:
+# Une una lista de valores en una sola cadena, separados por un delimitador.
+#
+# SINTAXIS:
+# !Join [delimitador, [lista, de, valores]]
+
+  # --- EJEMPLO 6: Join básico ---
+  MyBucketWithJoin:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - 'mybucket'
+          - !Ref AWS::StackName
+          - !Ref AWS::Region
+
+  # --- EJEMPLO 7: Join para crear URL ---
+Resources2:
+  MyLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      AvailabilityZones:
+        - us-east-1a
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+
+Outputs:
+  LoadBalancerURL:
+    Description: URL del Load Balancer creada con Join
+    Value: !Join 
+      - ''
+      - - 'http://'
+        - !GetAtt MyLoadBalancer.DNSName
+        - '/wp-admin/install.php'
+
+  JoinWithList:
+    Description: Lista de valores unidos
+    Value: !Join 
+      - ','
+      - - 'valor1'
+        - 'valor2'
+        - 'valor3'
+    # Resultado: "valor1,valor2,valor3"
+
+# ============================================================================
+# 5. Fn::FindInMap - Buscar valores en mapeos
+# ============================================================================
+# DESCRIPCIÓN:
+# Devuelve un valor de un mapa de dos niveles declarado en la sección Mappings.
+#
+# SINTAXIS:
+# !FindInMap [MapName, TopLevelKey, SecondLevelKey]
+
+Mappings:
+  # --- EJEMPLO 8: Mapeo de AMIs por región ---
+  RegionMap:
+    us-east-1:
+      AMI: ami-0c55b159cbfafe1f0
+      InstanceType: t2.micro
+    us-west-1:
+      AMI: ami-0bdb828fd58c52235
+      InstanceType: t2.small
+    eu-west-1:
+      AMI: ami-047bb4163c506cd98
+      InstanceType: t2.micro
+
+  # --- EJEMPLO 9: Mapeo de configuración por entorno ---
+  EnvironmentMap:
+    dev:
+      InstanceType: t2.micro
+      InstanceCount: 1
+    test:
+      InstanceType: t2.small
+      InstanceCount: 2
+    prod:
+      InstanceType: t2.large
+      InstanceCount: 5
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+Resources:
+  # Uso de FindInMap con región
+  MyMappedInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+      InstanceType: !FindInMap [RegionMap, !Ref 'AWS::Region', InstanceType]
+
+  # Uso de FindInMap con parámetro
+  MyEnvironmentInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: !FindInMap [EnvironmentMap, !Ref Environment, InstanceType]
+
+Outputs:
+  SelectedAMI:
+    Description: AMI seleccionada según la región
+    Value: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+
+  SelectedInstanceCount:
+    Description: Número de instancias según entorno
+    Value: !FindInMap [EnvironmentMap, !Ref Environment, InstanceCount]
+
+# ============================================================================
+# 6. Fn::Select - Seleccionar un elemento de una lista
+# ============================================================================
+# DESCRIPCIÓN:
+# Devuelve un único objeto de una lista de objetos por índice.
+#
+# SINTAXIS:
+# !Select [índice, lista]
+
+Parameters:
+  DbSubnetIpBlocks:
+    Type: CommaDelimitedList
+    Default: "10.0.1.0/24,10.0.2.0/24,10.0.3.0/24"
+    Description: Lista de bloques CIDR para subredes
+
+Resources:
+  # --- EJEMPLO 10: Select con lista de parámetros ---
+  MySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Select [0, !Ref DbSubnetIpBlocks]  # Primer elemento
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  MySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Select [1, !Ref DbSubnetIpBlocks]  # Segundo elemento
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  MySubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Select [2, !Ref DbSubnetIpBlocks]  # Tercer elemento
+      AvailabilityZone: !Select [2, !GetAZs '']
+
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+Outputs:
+  FirstSubnetCIDR:
+    Description: Primer bloque CIDR
+    Value: !Select [0, !Ref DbSubnetIpBlocks]
+
+# ============================================================================
+# 7. Fn::GetAZs - Obtener zonas de disponibilidad
+# ============================================================================
+# DESCRIPCIÓN:
+# Devuelve una lista de zonas de disponibilidad para una región específica.
+#
+# SINTAXIS:
+# !GetAZs región (usar '' para la región actual)
+
+Resources:
+  # --- EJEMPLO 11: GetAZs para crear subredes en diferentes AZs ---
+  MySubnetInFirstAZ:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']  # Primera AZ de la región
+
+  MySubnetInSecondAZ:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.20.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']  # Segunda AZ de la región
+
+Outputs:
+  AllAvailabilityZones:
+    Description: Todas las AZs disponibles
+    Value: !Join [', ', !GetAZs '']
+
+  FirstAZ:
+    Description: Primera zona de disponibilidad
+    Value: !Select [0, !GetAZs '']
+
+# ============================================================================
+# 8. Fn::If - Condicional
+# ============================================================================
+# DESCRIPCIÓN:
+# Devuelve un valor si la condición es true, otro si es false.
+#
+# SINTAXIS:
+# !If [NombreCondicion, ValorSiTrue, ValorSiFalse]
+
+Parameters:
+  EnvType:
+    Type: String
+    Default: test
+    AllowedValues:
+      - prod
+      - test
+    Description: Tipo de entorno
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvType, prod]
+  CreateProdResources: !Equals [!Ref EnvType, prod]
+
+Resources:
+  # --- EJEMPLO 12: If para establecer propiedades condicionalmente ---
+  MyConditionalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If 
+        - IsProduction
+        - production-bucket-2026
+        - test-bucket-2026
+      Tags:
+        - Key: Environment
+          Value: !If [IsProduction, Production, Test]
+
+  # --- EJEMPLO 13: If con valores complejos ---
+  MyConditionalInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0
+      InstanceType: !If 
+        - IsProduction
+        - t2.large
+        - t2.micro
+      Tags:
+        - Key: Name
+          Value: !If 
+            - IsProduction
+            - !Sub '${AWS::StackName}-prod-instance'
+            - !Sub '${AWS::StackName}-test-instance'
+
+Outputs:
+  BucketType:
+    Description: Tipo de bucket creado
+    Value: !If [IsProduction, 'Bucket de Producción', 'Bucket de Pruebas']
+
+# ============================================================================
+# 9. FUNCIONES DE CONDICIONES (para sección Conditions)
+# ============================================================================
+
+# --- 9.1 Fn::Equals - Comparar igualdad ---
+# DESCRIPCIÓN: Compara si dos valores son iguales
+# SINTAXIS: !Equals [valor1, valor2]
+
+Conditions:
+  # EJEMPLO 14: Equals simple
+  IsProductionEnv: !Equals [!Ref EnvType, prod]
+  
+  # EJEMPLO 15: Equals con región
+  IsUSEast1: !Equals [!Ref 'AWS::Region', us-east-1]
+
+# --- 9.2 Fn::And - AND lógico ---
+# DESCRIPCIÓN: Devuelve true si TODAS las condiciones son true
+# SINTAXIS: !And [condicion1, condicion2, ...]
+
+Parameters:
+  CreateResources:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+Conditions:
+  # EJEMPLO 16: And con múltiples condiciones
+  CreateProdAndUSEast1: !And 
+    - !Equals [!Ref EnvType, prod]
+    - !Equals [!Ref 'AWS::Region', us-east-1]
+    - !Equals [!Ref CreateResources, 'true']
+
+Resources:
+  ConditionalResource:
+    Type: AWS::S3::Bucket
+    Condition: CreateProdAndUSEast1
+    Properties:
+      BucketName: prod-us-east-1-bucket
+
+# --- 9.3 Fn::Or - OR lógico ---
+# DESCRIPCIÓN: Devuelve true si AL MENOS UNA condición es true
+# SINTAXIS: !Or [condicion1, condicion2, ...]
+
+Conditions:
+  # EJEMPLO 17: Or con múltiples condiciones
+  IsDevOrTest: !Or 
+    - !Equals [!Ref EnvType, dev]
+    - !Equals [!Ref EnvType, test]
+
+  # EJEMPLO 18: Or combinado
+  IsUSRegion: !Or 
+    - !Equals [!Ref 'AWS::Region', us-east-1]
+    - !Equals [!Ref 'AWS::Region', us-west-1]
+    - !Equals [!Ref 'AWS::Region', us-west-2]
+
+# --- 9.4 Fn::Not - NOT lógico ---
+# DESCRIPCIÓN: Niega una condición
+# SINTAXIS: !Not [condicion]
+
+Conditions:
+  # EJEMPLO 19: Not simple
+  IsNotProduction: !Not [!Equals [!Ref EnvType, prod]]
+
+  # EJEMPLO 20: Not combinado con And
+  IsTestAndNotUSEast1: !And 
+    - !Equals [!Ref EnvType, test]
+    - !Not [!Equals [!Ref 'AWS::Region', us-east-1]]
+
+# ============================================================================
+# 10. FUNCIONES ESPECÍFICAS DE REGLAS (sección Rules)
+# ============================================================================
+
+# --- 10.1 Fn::EachMemberEquals - Verificar todos los miembros ---
+# DESCRIPCIÓN: Verifica que todos los elementos de una lista sean iguales a un valor
+# SINTAXIS: !EachMemberEquals [[lista], valor]
+
+Parameters:
+  VPCIds:
+    Type: List<AWS::EC2::VPC::Id>
+    Description: Lista de VPC IDs
+
+Rules:
+  # EJEMPLO 21: EachMemberEquals
+  CheckVPCTags:
+    Assertions:
+      - Assert:
+          Fn::EachMemberEquals:
+            - Fn::ValueOfAll:
+                - AWS::EC2::VPC::Id
+                - Tags.Department
+            - IT
+        AssertionDescription: Todas las VPCs deben tener el tag Department=IT
+
+# --- 10.2 Fn::EachMemberIn - Verificar membresía ---
+# DESCRIPCIÓN: Verifica que cada elemento de una lista esté en otra lista
+# SINTAXIS: !EachMemberIn [[lista1], [lista2]]
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.micro
+
+Rules:
+  # EJEMPLO 22: Validación con reglas
+  ValidateInstanceType:
+    RuleCondition: !Equals [!Ref EnvType, prod]
+    Assertions:
+      - Assert: !Or 
+          - !Equals [!Ref InstanceType, t2.large]
+          - !Equals [!Ref InstanceType, t2.xlarge]
+        AssertionDescription: En producción solo se permiten t2.large o t2.xlarge
+
+  # EJEMPLO 23: Regla con And
+  ValidateProductionConfig:
+    RuleCondition: !Equals [!Ref EnvType, prod]
+    Assertions:
+      - Assert: !And 
+          - !Not [!Equals [!Ref InstanceType, t2.micro]]
+          - !Equals [!Ref 'AWS::Region', us-east-1]
+        AssertionDescription: Producción debe usar instancias mayores a t2.micro en us-east-1
+
+# ============================================================================
+# 11. PSEUDOPARÁMETROS
+# ============================================================================
+# DESCRIPCIÓN:
+# Son parámetros predefinidos por CloudFormation que no necesitas declarar.
+# Se referencian igual que los parámetros normales con !Ref
+
+# Pseudoparámetros disponibles:
+# - AWS::AccountId: ID de la cuenta AWS
+# - AWS::Region: Región donde se crea la stack
+# - AWS::StackName: Nombre de la stack
+# - AWS::StackId: ID de la stack
+# - AWS::NotificationARNs: Lista de ARNs de notificación
+# - AWS::NoValue: Elimina la propiedad correspondiente
+# - AWS::Partition: Partición en la que está el recurso (aws, aws-cn, aws-us-gov)
+# - AWS::URLSuffix: Sufijo de dominio para la región (amazonaws.com)
+
+Resources:
+  # --- EJEMPLO 24: Uso de pseudoparámetros ---
+  MyBucketWithPseudoParams:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-${AWS::Region}-${AWS::AccountId}'
+      Tags:
+        - Key: StackId
+          Value: !Ref AWS::StackId
+        - Key: Region
+          Value: !Ref AWS::Region
+        - Key: AccountId
+          Value: !Ref AWS::AccountId
+
+Outputs:
+  # EJEMPLO 25: Pseudoparámetros en outputs
+  StackInformation:
+    Description: Información de la stack
+    Value: !Sub |
+      Stack Name: ${AWS::StackName}
+      Stack ID: ${AWS::StackId}
+      Region: ${AWS::Region}
+      Account ID: ${AWS::AccountId}
+      Partition: ${AWS::Partition}
+      URL Suffix: ${AWS::URLSuffix}
+
+  S3URL:
+    Description: URL del bucket S3
+    Value: !Sub 'https://s3.${AWS::Region}.${AWS::URLSuffix}/${MyBucketWithPseudoParams}'
+
+# ============================================================================
+# 12. EJEMPLOS COMBINADOS Y CASOS DE USO REALES
+# ============================================================================
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: MyProject
+    Description: Nombre del proyecto
+
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+Mappings:
+  EnvironmentConfig:
+    dev:
+      InstanceType: t2.micro
+      MinSize: 1
+      MaxSize: 2
+      DBInstanceClass: db.t2.micro
+    staging:
+      InstanceType: t2.small
+      MinSize: 2
+      MaxSize: 4
+      DBInstanceClass: db.t2.small
+    prod:
+      InstanceType: t2.large
+      MinSize: 3
+      MaxSize: 10
+      DBInstanceClass: db.t2.large
+
+Conditions:
+  IsProd: !Equals [!Ref EnvironmentType, prod]
+  IsNotProd: !Not [!Equals [!Ref EnvironmentType, prod]]
+  CreateBackup: !Equals [!Ref EnvironmentType, prod]
+
+Resources:
+  # EJEMPLO 26: Combinación de múltiples funciones
+  ApplicationVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${EnvironmentType}-vpc'
+        - Key: Environment
+          Value: !Ref EnvironmentType
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ApplicationVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${EnvironmentType}-public-1'
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ApplicationVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${EnvironmentType}-public-2'
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Security group for ${ProjectName} ${EnvironmentType}'
+      VpcId: !Ref ApplicationVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${EnvironmentType}-sg'
+
+  ApplicationInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+      InstanceType: !FindInMap [EnvironmentConfig, !Ref EnvironmentType, InstanceType]
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref ApplicationSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${EnvironmentType}-instance'
+        - Key: Backup
+          Value: !If [CreateBackup, 'true', 'false']
+
+  # Recurso condicional - solo se crea en producción
+  ProductionBackupBucket:
+    Type: AWS::S3::Bucket
+    Condition: IsProd
+    Properties:
+      BucketName: !Sub '${ProjectName}-${EnvironmentType}-backup-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldBackups
+            Status: Enabled
+            ExpirationInDays: 90
+
+Outputs:
+  VPCId:
+    Description: ID de la VPC
+    Value: !Ref ApplicationVPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPC-ID'
+
+  PublicSubnets:
+    Description: Lista de subredes públicas
+    Value: !Join 
+      - ','
+      - - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnets'
+
+  InstancePublicIP:
+    Description: IP pública de la instancia
+    Value: !GetAtt ApplicationInstance.PublicIp
+
+  InstanceDNS:
+    Description: DNS público de la instancia
+    Value: !GetAtt ApplicationInstance.PublicDnsName
+
+  ApplicationURL:
+    Description: URL de la aplicación
+    Value: !Sub 'http://${ApplicationInstance.PublicDnsName}'
+
+  BackupBucketName:
+    Condition: IsProd
+    Description: Nombre del bucket de backup (solo producción)
+    Value: !Ref ProductionBackupBucket
+
+  EnvironmentInfo:
+    Description: Información del entorno
+    Value: !Sub |
+      Proyecto: ${ProjectName}
+      Entorno: ${EnvironmentType}
+      Región: ${AWS::Region}
+      Tipo de Instancia: ${ApplicationInstance.InstanceType}
+      Es Producción: ${IsProd}
+
+# ============================================================================
+# RESUMEN DE FUNCIONES
+# ============================================================================
+# 
+# 1. !Ref - Referencia a parámetros o recursos
+# 2. !GetAtt - Obtiene atributos específicos de recursos
+# 3. !Sub - Sustituye variables en cadenas
+# 4. !Join - Une lista de valores con un delimitador
+# 5. !FindInMap - Busca valores en mapeos
+# 6. !Select - Selecciona un elemento de una lista por índice
+# 7. !GetAZs - Obtiene zonas de disponibilidad
+# 8. !If - Condicional (valor si true, valor si false)
+# 9. !Equals - Compara igualdad (para Conditions)
+# 10. !And - AND lógico (para Conditions)
+# 11. !Or - OR lógico (para Conditions)
+# 12. !Not - NOT lógico (para Conditions)
+# 13. !EachMemberEquals - Verifica todos los miembros (para Rules)
+# 14. !EachMemberIn - Verifica membresía (para Rules)
+#
+# PSEUDOPARÁMETROS:
+# - AWS::AccountId
+# - AWS::Region
+# - AWS::StackName
+# - AWS::StackId
+# - AWS::Partition
+# - AWS::URLSuffix
+# - AWS::NotificationARNs
+# - AWS::NoValue
+#
+# ============================================================================
