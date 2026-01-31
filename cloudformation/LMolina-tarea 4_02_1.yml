@@ -122,7 +122,12 @@ Resources:
         - !Ref GrupoSeguridad
       Tags:
         - Key: Name
-          Value: !Join ['-', [!Ref AWS::Region, !Ref AWS::StackName, 'LMolina']]
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref AWS::Region
+                - !Ref AWS::StackName
+                - 'LMolina'
         - Key: VPCID
           Value: !GetAtt MiVPC.VpcId
 
@@ -147,4 +152,9 @@ Outputs:
   NombreRecurso:
     Description: Nombre formado con Join (Region-StackName-LMolina)
     Condition: DebeCrearInstancia
-    Value: !Join ['-', [!Ref AWS::Region, !Ref AWS::StackName, 'LMolina']]
+    Value:
+      Fn::Join:
+        - '-'
+        - - !Ref AWS::Region
+          - !Ref AWS::StackName
+          - 'LMolina'

@@ -71,10 +71,7 @@ Resources:
   WebAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Join
-        - "-"
-        - - webapp-security-group
-          - !Ref EnvironmentType
+      GroupName: !Join ["-", [webapp-security-group, !Ref EnvironmentType]]
       GroupDescription: "Allow HTTP/HTTPS and SSH inbound and outbound traffic"
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -93,10 +90,7 @@ Resources:
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Join
-        - "-"
-        - - webapp-db-security-group
-          - !Ref EnvironmentType
+      GroupName: !Join ["-", [webapp-db-security-group, !Ref EnvironmentType]]
       GroupDescription: "Allow database traffic only from EC2 instance"
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -111,10 +105,7 @@ Resources:
       InstanceId: !Ref WebAppInstance
       Tags:
         - Key: Name
-          Value: !Join
-            - "-"
-            - - webapp-eip
-              - !Ref EnvironmentType
+          Value: !Join ["-", [webapp-eip, !Ref EnvironmentType]]
 
   WebAppDatabase:
     Type: AWS::RDS::DBInstance
@@ -130,10 +121,7 @@ Resources:
       DBName: !Ref DBName
       Tags:
         - Key: Name
-          Value: !Join
-            - "-"
-            - - webapp-rds
-              - !Ref EnvironmentType
+          Value: !Join ["-", [webapp-rds, !Ref EnvironmentType]]
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
 

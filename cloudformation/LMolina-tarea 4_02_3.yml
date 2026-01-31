@@ -1,0 +1,291 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application Load Balancer y Auto Scaling Group en multiples zonas de disponibilidad
+
+Parameters:
+  ALBPublico:
+    Description: Determina si el ALB debe ser publico (internet-facing) o interno (internal)
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  NombreRecurso:
+    Description: Nombre base para los recursos
+    Type: String
+    Default: vivalandingzone
+  
+  KeyPair:
+    Description: Par de claves SSH para las instancias EC2
+    Type: String
+
+Conditions:
+  EsALBPublico: !Equals [!Ref ALBPublico, 'true']
+
+Resources:
+  MiVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-VPC'
+
+  SubredPublica1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MiVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-Subred1'
+
+  SubredPublica2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MiVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-Subred2'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-IGW'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MiVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  TablaRutas:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MiVPC
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-TablaRutas'
+
+  RutaPublica:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref TablaRutas
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  AsociacionSubred1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubredPublica1
+      RouteTableId: !Ref TablaRutas
+
+  AsociacionSubred2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubredPublica2
+      RouteTableId: !Ref TablaRutas
+
+  GrupoSeguridadALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Grupo de seguridad para el Application Load Balancer
+      VpcId: !Ref MiVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-SG-ALB'
+
+  GrupoSeguridadInstancias:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Grupo de seguridad para instancias EC2
+      VpcId: !Ref MiVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref GrupoSeguridadALB
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-SG-Instancias'
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name:
+        Fn::Join:
+          - '-'
+          - - !Ref NombreRecurso
+            - 'LMolina-ALB'
+      Scheme: !If [EsALBPublico, 'internet-facing', 'internal']
+      Type: application
+      Subnets:
+        - !Ref SubredPublica1
+        - !Ref SubredPublica2
+      SecurityGroups:
+        - !Ref GrupoSeguridadALB
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-ALB'
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name:
+        Fn::Join:
+          - '-'
+          - - !Ref NombreRecurso
+            - 'LMolina-TG'
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref MiVPC
+      HealthCheckEnabled: true
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-TG'
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName:
+        Fn::Join:
+          - '-'
+          - - !Ref NombreRecurso
+            - 'LMolina-LT'
+      LaunchTemplateData:
+        ImageId: ami-0532be01f26a3de55
+        InstanceType: t2.micro
+        KeyName: !Ref KeyPair
+        SecurityGroupIds:
+          - !Ref GrupoSeguridadInstancias
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd
+            systemctl enable httpd
+            echo "<h1>Servidor Web - ${NombreRecurso} - LMolina</h1>" > /var/www/html/index.html
+            echo "<p>Instancia: $(hostname -f)</p>" >> /var/www/html/index.html
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName:
+        Fn::Join:
+          - '-'
+          - - !Ref NombreRecurso
+            - 'LMolina-ASG'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 4
+      DesiredCapacity: 2
+      VPCZoneIdentifier:
+        - !Ref SubredPublica1
+        - !Ref SubredPublica2
+      TargetGroupARNs:
+        - !Ref TargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      Tags:
+        - Key: Name
+          Value:
+            Fn::Join:
+              - '-'
+              - - !Ref NombreRecurso
+                - 'LMolina-ASG-Instance'
+          PropagateAtLaunch: true
+
+Outputs:
+  VPCID:
+    Description: ID de la VPC creada
+    Value: !Ref MiVPC
+  
+  ALBDNSName:
+    Description: DNS del Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  
+  ALBScheme:
+    Description: Esquema del ALB (internet-facing o internal)
+    Value: !If [EsALBPublico, 'internet-facing', 'internal']
+  
+  TargetGroupARN:
+    Description: ARN del Target Group
+    Value: !Ref TargetGroup
+  
+  AutoScalingGroupName:
+    Description: Nombre del Auto Scaling Group
+    Value: !Ref AutoScalingGroup
