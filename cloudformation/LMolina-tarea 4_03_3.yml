@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creación de un Bucket S3 con permisos específicos y tipos de almacenamiento'
+
+# ============================================================================
+# PARÁMETROS
+# ============================================================================
+Parameters:
+  BucketName:
+    Type: String
+    Description: Nombre único del Bucket S3
+    Default: 'mi-bucket-proyecto-2026'
+
+  AccessLevel:
+    Type: String
+    Description: Nivel de acceso del bucket (Privado o Público)
+    Default: Private
+    AllowedValues:
+      - Private
+      - Public
+
+  StorageOption:
+    Type: String
+    Description: Opción de almacenamiento
+    Default: Standard
+    AllowedValues:
+      - Standard
+      - Intelligent-Tiering
+
+# ============================================================================
+# MAPEOS
+# ============================================================================
+Mappings:
+  StorageConfig:
+    Standard:
+      StorageType: STANDARD_IA
+    Intelligent-Tiering:
+      StorageType: INTELLIGENT_TIERING
+
+# ============================================================================
+# CONDICIONES
+# ============================================================================
+Conditions:
+  IsPublic: !Equals [!Ref AccessLevel, Public]
+
+# ============================================================================
+# RECURSOS
+# ============================================================================
+Resources:
+  # --------------------------------------------------------------------------
+  # Bucket S3
+  # --------------------------------------------------------------------------
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: !If [IsPublic, false, true]
+        BlockPublicPolicy: !If [IsPublic, false, true]
+        IgnorePublicAcls: !If [IsPublic, false, true]
+        RestrictPublicBuckets: !If [IsPublic, false, true]
+      
+      # Configuración de ciclo de vida usando Mapeos para el tipo de almacenamiento
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionRule
+            Status: Enabled
+            Transitions:
+              - StorageClass: !FindInMap [StorageConfig, !Ref StorageOption, StorageType]
+                TransitionInDays: 30
+
+  # --------------------------------------------------------------------------
+  # Política del Bucket (Solo si es Público)
+  # --------------------------------------------------------------------------
+  MyBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: IsPublic
+    Properties:
+      Bucket: !Ref MyS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub '${MyS3Bucket.Arn}/*'
+
+# ============================================================================
+# OUTPUTS
+# ============================================================================
+Outputs:
+  BucketARN:
+    Description: ARN del Bucket S3 creado
+    Value: !GetAtt MyS3Bucket.Arn
+  
+  UploadURL:
+    Description: URL para carga de archivos
+    Value: !Sub 'https://${MyS3Bucket}.s3.${AWS::Region}.amazonaws.com'
